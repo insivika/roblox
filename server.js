@@ -1,7 +1,8 @@
 const express = require("express");
-const app = express();
 const port = 6500;
 const path = require("path");
+const app = express();
+const httpServer = require("http").createServer(app);
 
 app.use(express.static(__dirname + "/dist/client"));
 
@@ -9,6 +10,8 @@ app.get("/", function (req, res) {
   res.sendFile(path.resolve(__dirname, "dist/client/index.html"));
 });
 
-app.listen(port, () => {
+console.log("hello");
+
+httpServer.listen(port, () => {
   console.log(`Example app listening at http://localhost:${port}`);
 });

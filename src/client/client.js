@@ -128,6 +128,8 @@ class Game {
 
         game.player.object = new THREE.Object3D();
         game.scene.add(game.player.object);
+        game.player.object.position.set(3122, 0, -173);
+        game.player.object.rotateY(90);
         game.player.object.add(object);
         game.animations.Idle = object.animations[0];
 
