@@ -46,31 +46,33 @@ class Game {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xa0a0a0);
-    this.scene.fog = new THREE.Fog(0xa0a0a0, 700, 1000);
+    this.scene.fog = new THREE.Fog(0xa0a0a0, 1000, 5000);
 
     let light = new THREE.HemisphereLight(0xffffff, 0x444444);
     light.position.set(0, 200, 0);
     this.scene.add(light);
 
+    const shadowSize = 200;
     light = new THREE.DirectionalLight(0xffffff);
     light.position.set(0, 200, 100);
     light.castShadow = true;
-    light.shadow.camera.top = 180;
-    light.shadow.camera.bottom = -100;
-    light.shadow.camera.left = -120;
-    light.shadow.camera.right = 120;
+    light.shadow.camera.top = shadowSize;
+    light.shadow.camera.bottom = -shadowSize;
+    light.shadow.camera.left = -shadowSize;
+    light.shadow.camera.right = shadowSize;
     this.scene.add(light);
+    this.sun = light;
 
     // ground
     const mesh = new THREE.Mesh(
-      new THREE.PlaneBufferGeometry(2000, 2000),
+      new THREE.PlaneBufferGeometry(10000, 10000),
       new THREE.MeshPhongMaterial({ color: 0x999999, depthWrite: false })
     );
     mesh.rotation.x = -Math.PI / 2;
     mesh.receiveShadow = true;
     this.scene.add(mesh);
 
-    const grid = new THREE.GridHelper(2000, 40, 0x000000, 0x000000);
+    const grid = new THREE.GridHelper(10000, 40, 0x000000, 0x000000);
     grid.material.opacity = 0.2;
     grid.material.transparent = true;
     this.scene.add(grid);
@@ -182,6 +184,7 @@ class Game {
       onMove: this.playerControl,
       game: this,
     });
+    this.createColliders();
     this.setAction("Idle");
     this.animate();
   };
@@ -218,12 +221,68 @@ class Game {
   };
 
   movePlayer = (dt) => {
-    if (this.player.move.forward > 0) {
-      const speed = this.player.action == "Running" ? 400 : 150;
-      this.player.object.translateZ(dt * speed);
-    } else {
-      this.player.object.translateZ(-dt * 30);
+    const position = this.player.object.position.clone();
+    position.y += 60;
+    let direction = new THREE.Vector3();
+    this.player.object.getWorldDirection(direction);
+    if (this.player.move.forward < 0) direction.negate();
+    let raycaster = new THREE.Raycaster(position, direction);
+    let blocked = false;
+    const colliders = this.colliders;
+
+    if (colliders !== undefined) {
+      let intersect = raycaster.intersectObjects(colliders);
+
+      if (intersect.length > 0) {
+        if (intersect[0].distance < 50) blocked = true;
+      }
+      // Cast Left
+      // Cast Right
+      // Cast down
+      direction.set(0, -1, 0);
+      position.y += 200;
+      raycaster = new THREE.Raycaster(position, direction);
+
+      const gravity = 30;
+      intersect = raycaster.intersectObjects(colliders);
+      // Check for intersection collected in the intersect array
+      if (intersect.length > 0) {
+        const targetY = position.y - intersect[0].distance;
+        if (targetY > this.player.object.position.y) {
+          // Go up
+          this.player.object.position.y =
+            0.8 * this.player.object.position.y + 0.2 * targetY;
+          this.player.velocityY = 0;
+        } else if (targetY < this.player.object.position.y) {
+          //Falling
+          if (this.player.velocityY == undefined) this.player.velocityY = 0;
+          this.player.velocityY += dt * gravity;
+          this.player.object.position.y -= this.player.velocityY;
+          if (this.player.object.position.y < targetY) {
+            this.player.velocityY = 0;
+            this.player.object.position.y = targetY;
+          }
+        }
+      } else if (this.player.object.position.y > 0) {
+        if (this.player.velocityY == undefined) this.player.velocityY = 0;
+        this.player.velocityY += dt * gravity;
+        this.player.object.position.y -= this.player.velocityY;
+        if (this.player.object.position.y < 0) {
+          this.player.velocityY = 0;
+          this.player.object.position.y = 0;
+        }
+      }
     }
+
+    if (!blocked) {
+      if (this.player.move.forward > 0) {
+        const speed = this.player.action == "Running" ? 400 : 150;
+        this.player.object.translateZ(dt * speed);
+      } else {
+        this.player.object.translateZ(-dt * 30);
+      }
+    }
+
     this.player.object.rotateY(this.player.move.turn * dt);
   };
 
@@ -250,6 +309,32 @@ class Game {
   activeCamera = (object) => {
     this.player.cameras.active = object;
   };
+
+  createColliders() {
+    const geometry = new THREE.BoxGeometry(500, 400, 500);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0x222222,
+      wireframe: true,
+    });
+
+    this.colliders = [];
+
+    for (let x = -5000; x < 5000; x += 1000) {
+      for (let z = -5000; z < 5000; z += 1000) {
+        if (x == 0 && z == 0) continue;
+        const box = new THREE.Mesh(geometry, material);
+        box.position.set(x, 250, z);
+        this.scene.add(box);
+        this.colliders.push(box);
+      }
+    }
+
+    const geometry2 = new THREE.BoxGeometry(1000, 40, 1000);
+    const stage = new THREE.Mesh(geometry2, material);
+    stage.position.set(0, 20, 0);
+    this.colliders.push(stage);
+    this.scene.add(stage);
+  }
 
   animate() {
     const game = this;
@@ -281,6 +366,13 @@ class Game {
       const pos = this.player.object.position.clone();
       pos.y += 200;
       this.camera.lookAt(pos);
+    }
+
+    if (this.sun != undefined) {
+      this.sun.position.x = this.player.object.position.x;
+      this.sun.position.y = this.player.object.position.y + 200;
+      this.sun.position.z = this.player.object.position.z + 100;
+      this.sun.target = this.player.object;
     }
 
     this.renderer.render(this.scene, this.camera);
