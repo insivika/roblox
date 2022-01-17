@@ -1,8 +1,12 @@
 const express = require("express");
 const port = 6500;
 const path = require("path");
+const socketio = require("socket.io");
 const app = express();
-const httpServer = require("http").createServer(app);
+const http = require("http");
+
+const server = http.createServer(app);
+const io = socketio(server);
 
 app.use(express.static(__dirname + "/dist/client"));
 
@@ -10,8 +14,63 @@ app.get("/", function (req, res) {
   res.sendFile(path.resolve(__dirname, "dist/client/index.html"));
 });
 
-console.log("hello");
+io.sockets.on("connection", (socket) => {
+  socket.userData = { x: 0, y: 0, z: 0, heading: 0 };
 
-httpServer.listen(port, () => {
+  console.log(`${socket.id} connected`);
+  socket.emit("setId", { id: socket.id });
+
+  socket.on("disconnect", () => {
+    socket.brodcast.emit("deletedPlayer", { id: socket.id });
+  });
+
+  socket.on("init", (data) => {
+    console.log(`socket init ${data.model}`);
+    socket.userData.model = data.model;
+    socket.userData.color = data.color;
+    socket.userData.x = data.x;
+    socket.userData.y = data.y;
+    socket.userData.z = data.z;
+    socket.userData.heading = data.h;
+    socket.userData.pb = data.pb;
+    socket.userData.action = "Idle";
+  });
+
+  socket.on("update", (data) => {
+    socket.userData.x = data.x;
+    socket.userData.y = data.y;
+    socket.userData.z = data.z;
+    socket.userData.heading = data.h;
+    socket.userData.pb = data.pb;
+    socket.userData.action = data.action;
+  });
+});
+
+server.listen(port, () => {
   console.log(`Example app listening at http://localhost:${port}`);
 });
+
+setInterval(() => {
+  const nameSpace = io.of("/");
+  let pack = [];
+  for (let id in io.sockets.sockets) {
+    const socket = nameSpace.connected[id];
+    // Only push sockets that have been initialized
+    if (socket.userData.model !== undefined) {
+      pack.push({
+        id: socket.id,
+        model: socket.userData.model,
+        color: socket.userData.color,
+        x: socket.userData.x,
+        y: socket.userData.y,
+        z: socket.userData.z,
+        heading: socket.userData.heading,
+        pb: socket.userData.pb,
+        action: socket.userData.action,
+      });
+    }
+  }
+  if (pack.length > 0) {
+    io.emit("remoteData", pack);
+  }
+}, 40);
