@@ -39,48 +39,65 @@ class Game {
     this.camera = new THREE.PerspectiveCamera(
       45,
       window.innerWidth / window.innerHeight,
-      1,
-      5000
+      10,
+      200000
     );
     this.camera.position.set(112, 100, 600);
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xa0a0a0);
-    this.scene.fog = new THREE.Fog(0xa0a0a0, 1000, 5000);
 
-    let light = new THREE.HemisphereLight(0xffffff, 0x444444);
-    light.position.set(0, 200, 0);
-    this.scene.add(light);
+    this.scene.background = new THREE.Color(0x00a0f0);
+    const ambient = new THREE.AmbientLight(0xaaaaaa);
+    this.scene.add(ambient);
 
-    const shadowSize = 200;
-    light = new THREE.DirectionalLight(0xffffff);
-    light.position.set(0, 200, 100);
+    const light = new THREE.DirectionalLight(0xaaaaaa);
+    light.position.set(30, 100, 40);
+    light.target.position.set(0, 0, 0);
+
     light.castShadow = true;
-    light.shadow.camera.top = shadowSize;
-    light.shadow.camera.bottom = -shadowSize;
-    light.shadow.camera.left = -shadowSize;
-    light.shadow.camera.right = shadowSize;
-    this.scene.add(light);
+
+    const lightSize = 500;
+    light.shadow.camera.near = 1;
+    light.shadow.camera.far = 500;
+    light.shadow.camera.left = light.shadow.camera.bottom = -lightSize;
+    light.shadow.camera.right = light.shadow.camera.top = lightSize;
+
+    light.shadow.bias = 0.0039;
+    light.shadow.mapSize.width = 1024;
+    light.shadow.mapSize.height = 1024;
+
     this.sun = light;
-
-    // ground
-    const mesh = new THREE.Mesh(
-      new THREE.PlaneBufferGeometry(10000, 10000),
-      new THREE.MeshPhongMaterial({ color: 0x999999, depthWrite: false })
-    );
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.receiveShadow = true;
-    this.scene.add(mesh);
-
-    const grid = new THREE.GridHelper(10000, 40, 0x000000, 0x000000);
-    grid.material.opacity = 0.2;
-    grid.material.transparent = true;
-    this.scene.add(grid);
+    this.scene.add(light);
 
     // model
     const loader = new FBXLoader();
     const game = this;
 
+    this.loadEnvironment(loader);
+
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.shadowMap.enabled = true;
+    this.container.appendChild(this.renderer.domElement);
+
+    // this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    // this.controls.target.set(0, 150, 0);
+    // this.controls.update();
+
+    window.addEventListener(
+      "resize",
+      function () {
+        game.onWindowResize();
+      },
+      false
+    );
+  }
+
+  loadEnvironment = (loader) => {
+    const game = this;
+
+    // Player
     loader.load(
       `${this.assetsPath}fbx/people/FireFighter.fbx`,
       async (object) => {
@@ -120,24 +137,41 @@ class Game {
       }
     );
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.shadowMap.enabled = true;
-    this.container.appendChild(this.renderer.domElement);
+    // Town
+    loader.load(`${this.assetsPath}fbx/town.fbx`, (object) => {
+      game.environment = object;
+      game.colliders = [];
+      game.scene.add(object);
 
-    // this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    // this.controls.target.set(0, 150, 0);
-    // this.controls.update();
+      object.traverse((child) => {
+        if (child.isMesh) {
+          if (child.name.startsWith("proxy")) {
+            game.colliders.push(child);
+            child.material.visible = false;
+          } else {
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        }
+      });
 
-    window.addEventListener(
-      "resize",
-      function () {
-        game.onWindowResize();
-      },
-      false
-    );
-  }
+      const tLoader = new THREE.CubeTextureLoader();
+      tLoader.setPath(`${game.assetsPath}/images/`);
+
+      const textureCube = tLoader.load([
+        "px.jpg",
+        "nx.jpg",
+        "py.jpg",
+        "ny.jpg",
+        "pz.jpg",
+        "nz.jpg",
+      ]);
+
+      game.scene.background = textureCube;
+
+      game.animate();
+    });
+  };
 
   loadAnimations = async (loader) => {
     const game = this;
@@ -184,7 +218,6 @@ class Game {
       onMove: this.playerControl,
       game: this,
     });
-    this.createColliders();
     this.setAction("Idle");
     this.animate();
   };
@@ -291,7 +324,7 @@ class Game {
     front.position.set(112, 100, 600);
     front.parent = this.player.object;
     const back = new THREE.Object3D();
-    back.position.set(0, 300, -600);
+    back.position.set(0, 300, -1050);
     back.parent = this.player.object;
     const wide = new THREE.Object3D();
     wide.position.set(178, 139, 1665);
@@ -309,32 +342,6 @@ class Game {
   activeCamera = (object) => {
     this.player.cameras.active = object;
   };
-
-  createColliders() {
-    const geometry = new THREE.BoxGeometry(500, 400, 500);
-    const material = new THREE.MeshBasicMaterial({
-      color: 0x222222,
-      wireframe: true,
-    });
-
-    this.colliders = [];
-
-    for (let x = -5000; x < 5000; x += 1000) {
-      for (let z = -5000; z < 5000; z += 1000) {
-        if (x == 0 && z == 0) continue;
-        const box = new THREE.Mesh(geometry, material);
-        box.position.set(x, 250, z);
-        this.scene.add(box);
-        this.colliders.push(box);
-      }
-    }
-
-    const geometry2 = new THREE.BoxGeometry(1000, 40, 1000);
-    const stage = new THREE.Mesh(geometry2, material);
-    stage.position.set(0, 20, 0);
-    this.colliders.push(stage);
-    this.scene.add(stage);
-  }
 
   animate() {
     const game = this;
