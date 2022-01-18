@@ -231,6 +231,13 @@ export default class PlayerLocal extends Player {
     let blocked = false;
     const colliders = this.game.colliders;
 
+    if (colliders !== undefined) {
+      const intersect = raycaster.intersectObjects(colliders);
+      if (intersect.length > 0) {
+        if (intersect[0].distance < 50) blocked = true;
+      }
+    }
+
     if (!blocked) {
       if (this.motion.forward > 0) {
         const speed = this.action == "Running" ? 500 : 150;
@@ -239,22 +246,16 @@ export default class PlayerLocal extends Player {
         this.object.translateZ(-dt * 30);
       }
     }
-
     if (colliders !== undefined) {
-      let intersect = raycaster.intersectObjects(colliders);
-
-      if (intersect.length > 0) {
-        if (intersect[0].distance < 50) blocked = true;
-      }
       // Cast Left
       // Cast Right
       // Cast down
       direction.set(0, -1, 0);
       position.y += 200;
       raycaster = new THREE.Raycaster(position, direction);
-
       const gravity = 30;
-      intersect = raycaster.intersectObjects(colliders);
+
+      let intersect = raycaster.intersectObjects(colliders);
       // Check for intersection collected in the intersect array
       if (intersect.length > 0) {
         const targetY = position.y - intersect[0].distance;
