@@ -2,17 +2,30 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader";
 import JoyStick from "./utils/Joystick";
+import Preloader from "./utils/Preloader";
+import PlayerLocal from "./Player";
 
 class Game {
   constructor() {
+    this.modes = Object.freeze({
+      NONE: Symbol("none"),
+      PRELOAD: Symbol("preload"),
+      INITIALIZING: Symbol("initializing"),
+      CREATING_LEVEL: Symbol("active"),
+      GAMEOVER: Symbol("gameover"),
+    });
     this.container;
-    this.player = {};
-    this.stats;
     this.controls;
     this.camera;
+    this.cameras;
     this.scene;
     this.renderer;
     this.animations = {};
+    this.remotePlayers = [];
+    this.remoteColliders = [];
+    this.initializedPlayers = [];
+    this.assetsPath = "./assets/";
+    const game = this;
     this.animationNames = [
       "Walking",
       "Walking Backwards",
@@ -20,15 +33,36 @@ class Game {
       "Running",
       "Pointing Gesture",
     ];
+
+    const options = {
+      assets: [
+        `${this.assetsPath}images/nx.jpg`,
+        `${this.assetsPath}images/px.jpg`,
+        `${this.assetsPath}images/ny.jpg`,
+        `${this.assetsPath}images/py.jpg`,
+        `${this.assetsPath}images/nz.jpg`,
+        `${this.assetsPath}images/pz.jpg`,
+      ],
+      oncomplete: () => {
+        game.init();
+      },
+    };
+
+    this.animationNames.forEach(function (animationName) {
+      options.assets.push(`${game.assetsPath}fbx/anims/${animationName}.fbx`);
+    });
+
+    this.mode = this.modes.PRELOAD;
+
+    this.clock = new THREE.Clock();
+
     this.container = document.createElement("div");
     this.container.style.height = "100%";
     document.body.appendChild(this.container);
 
-    this.assetsPath = "./assets/";
+    const preloader = new Preloader(options);
 
-    this.clock = new THREE.Clock();
-
-    this.init();
+    // this.init();
 
     window.onError = function (error) {
       console.error(JSON.stringify(error));
@@ -36,6 +70,7 @@ class Game {
   }
 
   init() {
+    this.mode = this.modes.INITIALIZING;
     this.camera = new THREE.PerspectiveCamera(
       45,
       window.innerWidth / window.innerHeight,
@@ -73,6 +108,8 @@ class Game {
     const loader = new FBXLoader();
     const game = this;
 
+    this.player = new PlayerLocal(this);
+
     this.loadEnvironment(loader);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -94,53 +131,9 @@ class Game {
     );
   }
 
-  loadEnvironment = (loader) => {
+  loadEnvironment = async (loader) => {
     const game = this;
-
-    // Player
-    loader.load(
-      `${this.assetsPath}fbx/people/FireFighter.fbx`,
-      async (object) => {
-        object.mixer = new THREE.AnimationMixer(object);
-        game.player.mixer = object.mixer;
-        game.player.root = object.mixer.getRoot();
-
-        object.name = "FireFighter";
-
-        object.traverse(function (child) {
-          if (child.isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = false;
-          }
-        });
-
-        const tLoader = new THREE.TextureLoader();
-        tLoader.load(
-          `${game.assetsPath}images/SimplePeople_FireFighter_Brown.png`,
-          function (texture) {
-            object.traverse(function (child) {
-              if (child.isMesh) {
-                child.material.map = texture;
-              }
-            });
-          }
-        );
-
-        game.player.object = new THREE.Object3D();
-        game.scene.add(game.player.object);
-        game.player.object.position.set(3122, 0, -173);
-        game.player.object.rotateY(90);
-        game.player.object.add(object);
-        game.animations.Idle = object.animations[0];
-
-        await game.loadAnimations(loader);
-
-        game.loadInitialAction();
-      }
-    );
-
-    // Town
-    loader.load(`${this.assetsPath}fbx/town.fbx`, (object) => {
+    loader.load(`${this.assetsPath}fbx/town.fbx`, async (object) => {
       game.environment = object;
       game.colliders = [];
       game.scene.add(object);
@@ -170,9 +163,12 @@ class Game {
       ]);
 
       game.scene.background = textureCube;
-
-      game.animate();
     });
+
+    // TODO: This might need to go into the function above
+    await game.loadAnimations(loader);
+
+    this.loadInitialAction();
   };
 
   loadAnimations = async (loader) => {
@@ -215,12 +211,12 @@ class Game {
   };
 
   loadInitialAction = () => {
-    this.createCameras();
     this.joystick = new JoyStick({
       onMove: this.playerControl,
       game: this,
     });
     this.setAction("Idle");
+    this.mode = this.modes.ACTIVE;
     this.animate();
   };
 
@@ -249,76 +245,10 @@ class Game {
       }
     }
     if (forward == 0 && turn == 0) {
-      delete this.player.move;
+      delete this.player.motion;
     } else {
-      this.player.move = { forward, turn };
+      this.player.motion = { forward, turn };
     }
-  };
-
-  movePlayer = (dt) => {
-    const position = this.player.object.position.clone();
-    position.y += 60;
-    let direction = new THREE.Vector3();
-    this.player.object.getWorldDirection(direction);
-    if (this.player.move.forward < 0) direction.negate();
-    let raycaster = new THREE.Raycaster(position, direction);
-    let blocked = false;
-    const colliders = this.colliders;
-
-    if (colliders !== undefined) {
-      let intersect = raycaster.intersectObjects(colliders);
-
-      if (intersect.length > 0) {
-        if (intersect[0].distance < 50) blocked = true;
-      }
-      // Cast Left
-      // Cast Right
-      // Cast down
-      direction.set(0, -1, 0);
-      position.y += 200;
-      raycaster = new THREE.Raycaster(position, direction);
-
-      const gravity = 30;
-      intersect = raycaster.intersectObjects(colliders);
-      // Check for intersection collected in the intersect array
-      if (intersect.length > 0) {
-        const targetY = position.y - intersect[0].distance;
-        if (targetY > this.player.object.position.y) {
-          // Go up
-          this.player.object.position.y =
-            0.8 * this.player.object.position.y + 0.2 * targetY;
-          this.player.velocityY = 0;
-        } else if (targetY < this.player.object.position.y) {
-          //Falling
-          if (this.player.velocityY == undefined) this.player.velocityY = 0;
-          this.player.velocityY += dt * gravity;
-          this.player.object.position.y -= this.player.velocityY;
-          if (this.player.object.position.y < targetY) {
-            this.player.velocityY = 0;
-            this.player.object.position.y = targetY;
-          }
-        }
-      } else if (this.player.object.position.y > 0) {
-        if (this.player.velocityY == undefined) this.player.velocityY = 0;
-        this.player.velocityY += dt * gravity;
-        this.player.object.position.y -= this.player.velocityY;
-        if (this.player.object.position.y < 0) {
-          this.player.velocityY = 0;
-          this.player.object.position.y = 0;
-        }
-      }
-    }
-
-    if (!blocked) {
-      if (this.player.move.forward > 0) {
-        const speed = this.player.action == "Running" ? 400 : 150;
-        this.player.object.translateZ(dt * speed);
-      } else {
-        this.player.object.translateZ(-dt * 30);
-      }
-    }
-
-    this.player.object.rotateY(this.player.move.turn * dt);
   };
 
   createCameras = () => {
@@ -337,12 +267,14 @@ class Game {
     const collect = new THREE.Object3D();
     collect.position.set(40, 82, 94);
     collect.parent = this.player.object;
-    this.player.cameras = { front, back, wide, overhead, collect };
-    this.activeCamera(this.player.cameras.back);
+    // TODO: chat is a key
+    this.cameras = { front, back, wide, overhead, collect };
+
+    this.activeCamera(this.cameras.back);
   };
 
   activeCamera = (object) => {
-    this.player.cameras.active = object;
+    this.cameras.active = object;
   };
 
   animate() {
@@ -353,27 +285,38 @@ class Game {
       game.animate();
     });
 
-    if (this.player.mixer !== undefined) this.player.mixer.update(dt);
+    // this.updateRemotePlayers(dt);
+
+    if (this.player.mixer !== undefined && this.mode === this.modes.ACTIVE)
+      this.player.mixer.update(dt);
 
     if (this.player.action == "Walking") {
       const elapsedTime = Date.now() - this.player.actionTime;
-      if (elapsedTime > 1000 && this.player.move.forward > 0) {
+      if (elapsedTime > 1000 && this.player.motion.forward > 0) {
         this.setAction("Running");
       }
     }
 
-    if (this.player.move !== undefined) this.movePlayer(dt);
+    if (this.player.motion !== undefined) this.player.move(dt);
 
     if (
-      this.player.cameras != undefined &&
-      this.player.cameras.active != undefined
+      (this.cameras != undefined &&
+        this.cameras.active != undefined &&
+        this.player,
+      this.player.object !== undefined)
     ) {
       this.camera.position.lerp(
-        this.player.cameras.active.getWorldPosition(new THREE.Vector3()),
+        this.cameras.active.getWorldPosition(new THREE.Vector3()),
         0.05
       );
       const pos = this.player.object.position.clone();
-      pos.y += 200;
+
+      if (this.cameras.active == this.cameras.chat) {
+        pos.y += 200;
+      } else {
+        pos.y += 400;
+      }
+
       this.camera.lookAt(pos);
     }
 

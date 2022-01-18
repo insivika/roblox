@@ -9,7 +9,7 @@ class Player {
     let model, color;
 
     const colors = ["White", "Black", "Brown"];
-    const color = colors[Math.floor(Math.random() * color.length)];
+    color = colors[Math.floor(Math.random() * colors.length)];
 
     if (options === undefined) {
       const people = [
@@ -47,7 +47,7 @@ class Player {
     const loader = new FBXLoader();
     const player = this;
 
-    loader.load(`${game.assetPath}fbx/people/${model}.fbx`, (object) => {
+    loader.load(`${game.assetsPath}fbx/people/${model}.fbx`, (object) => {
       object.mixer = new THREE.AnimationMixer(object);
       player.root = object;
       player.mixer = object.mixer;
@@ -64,7 +64,7 @@ class Player {
       const textureLoader = new THREE.TextureLoader();
 
       textureLoader.load(
-        `${game.assetPath}images/SimplePeople_${model}_${color}.png`,
+        `${game.assetsPath}images/SimplePeople_${model}_${color}.png`,
         (texture) => {
           object.traverse((child) => {
             if (child.isMesh) {
@@ -88,9 +88,7 @@ class Player {
         game.createCameras();
         game.sun.target = game.player.object;
         game.animations.Idle = object.animations[0];
-        if (player.initSocket !== undefined) {
-          player.initSocket();
-        }
+        if (player.initSocket !== undefined) player.initSocket();
       } else {
         //   Create Colider for Other players
         const geometry = new THREE.BoxGeometry(100, 300, 100);
@@ -156,7 +154,7 @@ class Player {
   }
 }
 
-class PlayerLocal extends Player {
+export default class PlayerLocal extends Player {
   constructor(game, model) {
     super(game, model);
 
@@ -192,6 +190,8 @@ class PlayerLocal extends Player {
         }
       }
     });
+
+    this.socket = socket;
   }
 
   initSocket() {
@@ -220,14 +220,25 @@ class PlayerLocal extends Player {
   }
 
   move = (dt) => {
-    const position = this.player.object.position.clone();
+    const position = this.object.position.clone();
+
     position.y += 60;
     let direction = new THREE.Vector3();
-    this.player.object.getWorldDirection(direction);
-    if (this.player.move.forward < 0) direction.negate();
+    this.object.getWorldDirection(direction);
+
+    if (this.motion.forward < 0) direction.negate();
     let raycaster = new THREE.Raycaster(position, direction);
     let blocked = false;
-    const colliders = this.colliders;
+    const colliders = this.game.colliders;
+
+    if (!blocked) {
+      if (this.motion.forward > 0) {
+        const speed = this.action == "Running" ? 500 : 150;
+        this.object.translateZ(dt * speed);
+      } else {
+        this.object.translateZ(-dt * 30);
+      }
+    }
 
     if (colliders !== undefined) {
       let intersect = raycaster.intersectObjects(colliders);
@@ -247,42 +258,32 @@ class PlayerLocal extends Player {
       // Check for intersection collected in the intersect array
       if (intersect.length > 0) {
         const targetY = position.y - intersect[0].distance;
-        if (targetY > this.player.object.position.y) {
+        if (targetY > this.object.position.y) {
           // Go up
-          this.player.object.position.y =
-            0.8 * this.player.object.position.y + 0.2 * targetY;
-          this.player.velocityY = 0;
-        } else if (targetY < this.player.object.position.y) {
+          this.object.position.y = 0.8 * this.object.position.y + 0.2 * targetY;
+          this.velocityY = 0;
+        } else if (targetY < this.object.position.y) {
           //Falling
-          if (this.player.velocityY == undefined) this.player.velocityY = 0;
-          this.player.velocityY += dt * gravity;
-          this.player.object.position.y -= this.player.velocityY;
-          if (this.player.object.position.y < targetY) {
-            this.player.velocityY = 0;
-            this.player.object.position.y = targetY;
+          if (this.velocityY == undefined) this.velocityY = 0;
+          this.velocityY += dt * gravity;
+          this.object.position.y -= this.velocityY;
+          if (this.object.position.y < targetY) {
+            this.velocityY = 0;
+            this.object.position.y = targetY;
           }
         }
-      } else if (this.player.object.position.y > 0) {
-        if (this.player.velocityY == undefined) this.player.velocityY = 0;
-        this.player.velocityY += dt * gravity;
-        this.player.object.position.y -= this.player.velocityY;
-        if (this.player.object.position.y < 0) {
-          this.player.velocityY = 0;
-          this.player.object.position.y = 0;
+      } else if (this.object.position.y > 0) {
+        if (this.velocityY == undefined) this.velocityY = 0;
+        this.velocityY += dt * gravity;
+        this.object.position.y -= this.velocityY;
+        if (this.object.position.y < 0) {
+          this.velocityY = 0;
+          this.object.position.y = 0;
         }
       }
     }
 
-    if (!blocked) {
-      if (this.player.move.forward > 0) {
-        const speed = this.player.action == "Running" ? 400 : 150;
-        this.player.object.translateZ(dt * speed);
-      } else {
-        this.player.object.translateZ(-dt * 30);
-      }
-    }
-
-    this.player.object.rotateY(this.player.move.turn * dt);
+    this.object.rotateY(this.motion.turn * dt);
 
     this.updateSocket();
   };

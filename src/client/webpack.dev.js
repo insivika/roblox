@@ -9,6 +9,9 @@ module.exports = merge(common, {
     static: {
       directory: path.join(__dirname, "../../dist/client"),
     },
+    proxy: {
+      "/socket.io": "http://localhost:6500",
+    },
     hot: true,
   },
 });

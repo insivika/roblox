@@ -4,10 +4,16 @@ const path = require("path");
 const socketio = require("socket.io");
 const app = express();
 const http = require("http");
+const cors = require("cors");
 
 const server = http.createServer(app);
 const io = socketio(server);
 
+app.use(
+  cors({
+    origin: "http://localhost:8080",
+  })
+);
 app.use(express.static(__dirname + "/dist/client"));
 
 app.get("/", function (req, res) {
@@ -21,11 +27,11 @@ io.sockets.on("connection", (socket) => {
   socket.emit("setId", { id: socket.id });
 
   socket.on("disconnect", () => {
-    socket.brodcast.emit("deletedPlayer", { id: socket.id });
+    socket.broadcast.emit("deletedPlayer", { id: socket.id });
   });
 
   socket.on("init", (data) => {
-    console.log(`socket init ${data.model}`);
+    console.log(`socket init ${data.model}, ${data.color}`);
     socket.userData.model = data.model;
     socket.userData.color = data.color;
     socket.userData.x = data.x;
@@ -52,6 +58,7 @@ server.listen(port, () => {
 
 setInterval(() => {
   const nameSpace = io.of("/");
+
   let pack = [];
   for (let id in io.sockets.sockets) {
     const socket = nameSpace.connected[id];
