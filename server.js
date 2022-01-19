@@ -1,5 +1,4 @@
 const express = require("express");
-const port = 6500;
 const path = require("path");
 const socketio = require("socket.io");
 const app = express();
@@ -51,6 +50,8 @@ io.sockets.on("connection", (socket) => {
     socket.userData.action = data.action;
   });
 });
+
+let port = process.env.PORT || 6500;
 
 server.listen(port, () => {
   console.log(`Example app listening at http://localhost:${port}`);
