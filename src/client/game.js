@@ -245,14 +245,12 @@ class Game {
           if (player.id == data.id) iPlayer = player;
         });
 
-        // console.log("iPlayer", iPlayer);
         if (iPlayer === undefined) {
           let rPlayer;
           game.remotePlayers.forEach((player) => {
             if (player.id == data.id) rPlayer = player;
           });
 
-          // console.log("rPlayer", rPlayer);
           if (rPlayer === undefined) {
             game.initializingPlayers.push(new Player(game, data));
           } else {

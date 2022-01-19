@@ -122,7 +122,6 @@ export class Player {
       ? animation
       : THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(animation));
 
-    console.log(clip);
     const action = this.mixer.clipAction(clip);
     action.time = 0;
     this.mixer.stopAllAction();
@@ -130,8 +129,6 @@ export class Player {
     this.actionTime = Date.now();
     // // TODO: Not working in newer Three.js versions
     // // action.fadeIn(0.5);
-
-    console.log(action);
     action.play();
   }
 
