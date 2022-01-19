@@ -107,26 +107,31 @@ export class Player {
         game.remotePlayers.push(players[0]);
       }
 
-      if (game.animations.Idle != undefined) {
-        player.action = "Idle";
+      if (game.animations.Idle !== undefined) {
+        player.setAction("Idle");
       }
     });
   }
 
   setAction(name) {
-    if (this.actionName === undefined) return;
+    if (this.actionName === name || name == undefined) return;
+
+    const animation = this.animations[name];
+
     const clip = this.local
-      ? this.animations[name]
-      : THREE.AnimationClip.parse(
-          THREE.AnimationClip.toJSON(this.animations[name])
-        );
+      ? animation
+      : THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(animation));
+
+    console.log(clip);
     const action = this.mixer.clipAction(clip);
     action.time = 0;
     this.mixer.stopAllAction();
     this.actionName = name;
     this.actionTime = Date.now();
-    // TODO: Not working in newer Three.js versions
-    // action.fadeIn(0.5);
+    // // TODO: Not working in newer Three.js versions
+    // // action.fadeIn(0.5);
+
+    console.log(action);
     action.play();
   }
 
@@ -137,8 +142,6 @@ export class Player {
   update(dt) {
     this.mixer.update(dt);
 
-    console.log("update");
-
     if (this.game.remoteData.length > 0) {
       let found = false;
       for (let data of this.game.remoteData) {
@@ -148,7 +151,7 @@ export class Player {
         const euler = new THREE.Euler(data.pb, data.heading, data.pb);
         // TODO: what does this do?
         this.object.quaternion.setFromEuler(euler);
-        this.action = data.action;
+        this.setAction(data.action);
         found = true;
       }
       if (!found) this.game.removePlayer(this);
@@ -166,7 +169,6 @@ export class PlayerLocal extends Player {
       player.id = data.id;
     });
     socket.on("remoteData", (data) => {
-      console.log("remoteData", data);
       game.remoteData = data;
     });
 
@@ -243,7 +245,7 @@ export class PlayerLocal extends Player {
 
     if (!blocked) {
       if (this.motion.forward > 0) {
-        const speed = this.action == "Running" ? 500 : 150;
+        const speed = this.actionName == "Running" ? 500 : 150;
         this.object.translateZ(dt * speed);
       } else {
         this.object.translateZ(-dt * 30);

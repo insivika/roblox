@@ -62,8 +62,6 @@ setInterval(async () => {
   const sockets = await io.fetchSockets();
 
   sockets.forEach((socket) => {
-    console.log("model", socket.userData);
-
     if (socket.userData.model !== undefined) {
       pack.push({
         id: socket.id,

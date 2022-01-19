@@ -186,21 +186,21 @@ class Game {
     );
   };
 
-  setAction = (name) => {
-    const action = this.player.mixer.clipAction(this.animations[name]);
-    action.time = 0;
-    this.player.mixer.stopAllAction();
-    this.player.action = name;
-    this.player.actionTime = Date.now();
-    this.player.actionName = name;
+  // setAction = (name) => {
+  //   const action = this.player.mixer.clipAction(this.animations[name]);
+  //   action.time = 0;
+  //   this.player.mixer.stopAllAction();
+  //   this.player.action = name;
+  //   this.player.actionTime = Date.now();
+  //   this.player.actionName = name;
 
-    action
-      .reset()
-      .setEffectiveTimeScale(1)
-      .setEffectiveWeight(1)
-      //   .fadeIn(0.5)
-      .play();
-  };
+  //   action
+  //     .reset()
+  //     .setEffectiveTimeScale(1)
+  //     .setEffectiveWeight(1)
+  //     //   .fadeIn(0.5)
+  //     .play();
+  // };
 
   getAction = () => {
     if (this.player === undefined || this.player.actionName === undefined)
@@ -213,7 +213,7 @@ class Game {
       onMove: this.playerControl,
       game: this,
     });
-    this.setAction("Idle");
+    this.player.setAction("Idle");
     this.mode = this.modes.ACTIVE;
     this.animate();
   };
@@ -275,8 +275,7 @@ class Game {
 
     this.remotePlayers = remotePlayers;
     this.remoteColliders = remoteColliders;
-    console.log("remotePlayers", remotePlayers);
-    console.log("remoteColliders", remoteColliders);
+
     this.remotePlayers.forEach(function (player) {
       player.update(dt);
     });
@@ -299,17 +298,20 @@ class Game {
     turn = -turn;
 
     if (forward > 0.3) {
-      if (this.player.action != "Walking" && this.player.action != "Running")
-        this.setAction("Walking");
+      if (
+        this.player.actionName != "Walking" &&
+        this.player.actionName != "Running"
+      )
+        this.player.setAction("Walking");
     } else if (forward < -0.3) {
-      if (this.player.action != "Walking Backwards")
-        this.setAction("Walking Backwards");
+      if (this.player.actionName != "Walking Backwards")
+        this.player.setAction("Walking Backwards");
     } else {
       forward = 0;
       if (Math.abs(turn) > 0.1) {
-        if (this.player.action != "Turn") this.setAction("Turn");
-      } else if (this.player.action != "Idle") {
-        this.setAction("Idle");
+        if (this.player.actionName != "Turn") this.player.setAction("Turn");
+      } else if (this.player.actionName != "Idle") {
+        this.player.setAction("Idle");
       }
     }
     if (forward == 0 && turn == 0) {
@@ -360,10 +362,10 @@ class Game {
     if (this.player.mixer !== undefined && this.mode === this.modes.ACTIVE)
       this.player.mixer.update(dt);
 
-    if (this.player.action == "Walking") {
+    if (this.player.actionName == "Walking") {
       const elapsedTime = Date.now() - this.player.actionTime;
       if (elapsedTime > 1000 && this.player.motion.forward > 0) {
-        this.setAction("Running");
+        this.player.setAction("Running");
       }
     }
 
