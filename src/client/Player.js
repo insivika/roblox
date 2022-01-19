@@ -3,7 +3,7 @@ import { TextureLoader, WebGLMultipleRenderTargets } from "three";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader";
 import io from "socket.io-client";
 
-class Player {
+export class Player {
   constructor(game, options) {
     this.local = true;
     let model, color;
@@ -28,7 +28,7 @@ class Player {
         "Streetman",
         "Waitress",
       ];
-      model = people[Math.floor(Math.random()) * people.length];
+      model = people[Math.floor(Math.random() * people.length)];
     } else if (typeof options == "object") {
       this.local = false;
       this.options = options;
@@ -100,8 +100,8 @@ class Player {
         player.collider = box;
         player.object.userData.id = player.id;
         player.object.userData.remotePlayer = true;
-        const players = game.initialisingPlayers.splice(
-          game.initialisingPlayers.indexOf(this),
+        const players = game.initializingPlayers.splice(
+          game.initializingPlayers.indexOf(this),
           1
         );
         game.remotePlayers.push(players[0]);
@@ -137,6 +137,8 @@ class Player {
   update(dt) {
     this.mixer.update(dt);
 
+    console.log("update");
+
     if (this.game.remoteData.length > 0) {
       let found = false;
       for (let data of this.game.remoteData) {
@@ -154,7 +156,7 @@ class Player {
   }
 }
 
-export default class PlayerLocal extends Player {
+export class PlayerLocal extends Player {
   constructor(game, model) {
     super(game, model);
 
@@ -164,6 +166,7 @@ export default class PlayerLocal extends Player {
       player.id = data.id;
     });
     socket.on("remoteData", (data) => {
+      console.log("remoteData", data);
       game.remoteData = data;
     });
 
@@ -180,12 +183,12 @@ export default class PlayerLocal extends Player {
           game.remotePlayers.splice(index, 1);
           game.scene.remove(players[0].object);
         } else {
-          index = game.initialisingPlayers.indexOf(data.id);
+          index = game.initializingPlayers.indexOf(data.id);
 
           if (index != -1) {
-            const player = game.initialisingPlayers[index];
+            const player = game.initializingPlayers[index];
             player.delete = true;
-            game.initialisingPlayers.splice(index, 1);
+            game.initializingPlayers.splice(index, 1);
           }
         }
       }

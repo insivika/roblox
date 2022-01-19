@@ -3,7 +3,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader";
 import JoyStick from "./utils/Joystick";
 import Preloader from "./utils/Preloader";
-import PlayerLocal from "./Player";
+import { PlayerLocal, Player } from "./Player";
 
 class Game {
   constructor() {
@@ -23,7 +23,7 @@ class Game {
     this.animations = {};
     this.remotePlayers = [];
     this.remoteColliders = [];
-    this.initializedPlayers = [];
+    this.initializingPlayers = [];
     this.assetsPath = "./assets/";
     const game = this;
     this.animationNames = [
@@ -61,8 +61,6 @@ class Game {
     document.body.appendChild(this.container);
 
     const preloader = new Preloader(options);
-
-    // this.init();
 
     window.onError = function (error) {
       console.error(JSON.stringify(error));
@@ -227,6 +225,76 @@ class Game {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
+  updateRemotePlayers = (dt) => {
+    if (
+      this.remoteData === undefined ||
+      this.remoteData.length == 0 ||
+      this.player === undefined ||
+      this.player.id === undefined
+    )
+      return;
+
+    const game = this;
+    const remotePlayers = [];
+    const remoteColliders = [];
+
+    this.remoteData.forEach((data) => {
+      if (game.player.id != data.id) {
+        let iPlayer;
+        game.initializingPlayers.forEach((player) => {
+          if (player.id == data.id) iPlayer = player;
+        });
+
+        // console.log("iPlayer", iPlayer);
+        if (iPlayer === undefined) {
+          let rPlayer;
+          game.remotePlayers.forEach((player) => {
+            if (player.id == data.id) rPlayer = player;
+          });
+
+          // console.log("rPlayer", rPlayer);
+          if (rPlayer === undefined) {
+            game.initializingPlayers.push(new Player(game, data));
+          } else {
+            // Push the remote player
+            remotePlayers.push(rPlayer);
+            remoteColliders.push(rPlayer.collider);
+          }
+        }
+      }
+    });
+
+    this.scene.children.forEach((object) => {
+      if (
+        object.userData.remotePlayer &&
+        game.getRemotePlayerById(object.userData.id) == undefined
+      ) {
+        game.scene.remove(object);
+      }
+    });
+
+    this.remotePlayers = remotePlayers;
+    this.remoteColliders = remoteColliders;
+    console.log("remotePlayers", remotePlayers);
+    console.log("remoteColliders", remoteColliders);
+    this.remotePlayers.forEach(function (player) {
+      player.update(dt);
+    });
+  };
+
+  getRemotePlayerById = (id) => {
+    if (this.remotePlayers === undefined || this.remotePlayers.length == 0)
+      return;
+
+    const players = this.remotePlayers.filter(function (player) {
+      if (player.id == id) return true;
+    });
+
+    if (players.length == 0) return;
+
+    return players[0];
+  };
+
   playerControl = (forward, turn) => {
     turn = -turn;
 
@@ -249,6 +317,8 @@ class Game {
     } else {
       this.player.motion = { forward, turn };
     }
+
+    this.player.updateSocket();
   };
 
   createCameras = () => {
@@ -285,7 +355,7 @@ class Game {
       game.animate();
     });
 
-    // this.updateRemotePlayers(dt);
+    this.updateRemotePlayers(dt);
 
     if (this.player.mixer !== undefined && this.mode === this.modes.ACTIVE)
       this.player.mixer.update(dt);

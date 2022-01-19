@@ -31,7 +31,7 @@ io.sockets.on("connection", (socket) => {
   });
 
   socket.on("init", (data) => {
-    console.log(`socket init ${data.model}, ${data.color}`);
+    console.log(`init with model: ${data.model}`);
     socket.userData.model = data.model;
     socket.userData.color = data.color;
     socket.userData.x = data.x;
@@ -56,13 +56,14 @@ server.listen(port, () => {
   console.log(`Example app listening at http://localhost:${port}`);
 });
 
-setInterval(() => {
-  const nameSpace = io.of("/");
-
+setInterval(async () => {
   let pack = [];
-  for (let id in io.sockets.sockets) {
-    const socket = nameSpace.connected[id];
-    // Only push sockets that have been initialized
+
+  const sockets = await io.fetchSockets();
+
+  sockets.forEach((socket) => {
+    console.log("model", socket.userData);
+
     if (socket.userData.model !== undefined) {
       pack.push({
         id: socket.id,
@@ -76,8 +77,7 @@ setInterval(() => {
         action: socket.userData.action,
       });
     }
-  }
-  if (pack.length > 0) {
-    io.emit("remoteData", pack);
-  }
+  });
+
+  if (pack.length > 0) io.emit("remoteData", pack);
 }, 40);
