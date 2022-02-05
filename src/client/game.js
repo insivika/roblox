@@ -4,6 +4,7 @@ import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader";
 import JoyStick from "./utils/Joystick";
 import Preloader from "./utils/Preloader";
 import { PlayerLocal, Player } from "./Player";
+import SpeechBubble from "./SpeechBubble";
 
 class Game {
   constructor() {
@@ -110,6 +111,9 @@ class Game {
 
     this.loadEnvironment(loader);
 
+    this.speechBubble = new SpeechBubble(this, "", 150);
+    this.speechBubble.mesh.position.set(0, 350, 0);
+
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -120,6 +124,20 @@ class Game {
     // this.controls.target.set(0, 150, 0);
     // this.controls.update();
 
+    if ("ontouchstart" in window) {
+      window.addEventListener(
+        "touchdown",
+        (event) => game.onMouseDown(event),
+        false
+      );
+    } else {
+      window.addEventListener(
+        "mousedown",
+        (event) => game.onMouseDown(event),
+        false
+      );
+    }
+
     window.addEventListener(
       "resize",
       function () {
@@ -128,6 +146,77 @@ class Game {
       false
     );
   }
+
+  onMouseDown = (event) => {
+    console.log({
+      "this.remoteColliders": this.remoteColliders,
+      "this.remoteColliders.length": this.remoteColliders.length,
+      "this.speechBubble": this.speechBubble,
+      "this.speechBubble.mesh": this.speechBubble.mesh,
+    });
+
+    if (
+      this.remoteColliders === undefined ||
+      this.remoteColliders.length == 0 ||
+      this.speechBubble === undefined ||
+      this.speechBubble.mesh === undefined
+    )
+      return;
+
+    // Calculate mouse position in normalized device coordinates
+    //  (-1 to +1) for both axies
+    const mouse = new THREE.Vector2();
+    mouse.x = (event.clientX / this.renderer.domElement.width) * 2 - 1;
+    mouse.y = -(event.clientY / this.renderer.domElement.height) * 2 + 1;
+
+    console.log("this.camera ==> ", this.camera);
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, this.camera);
+
+    const intersections = raycaster.intersectObjects(this.remoteColliders);
+    const chatBox = document.getElementById("chat");
+
+    console.log("intersections => ", intersections);
+
+    if (intersections.length > 0) {
+      const intersectionObject = intersections[0].object;
+      const players = this.remotePlayers.filter((player) => {
+        if (
+          player.collider !== undefined &&
+          player.collider == intersectionObject
+        ) {
+          return true;
+        }
+      });
+
+      if (players.length) {
+        const player = players[0];
+        console.log(`onMousedown: player ${player.id}`);
+        this.speechBubble.player = player;
+        this.speechBubble.update("");
+        this.scene.add(this.speechBubble.mesh);
+        this.chatSocketId = player.id;
+        chatBox.style.display = "block";
+        this.activeCamera = this.camera.chat;
+      }
+    } else {
+      // Check if the chat panel is visible
+      if (chatBox.style.display == "block") {
+        console.log("onMousedown: no player found");
+        if (this.speechBubble.mesh.parent !== null) {
+          this.speechBubble.mesh.parent.remove(this.speechBubble.mesh);
+
+          delete this.speechBubble.player;
+          delete this.chatSocketId;
+          chat.style.display = "none";
+          this.activeCamera = this.camera.back;
+        }
+      } else {
+        console.log("onMousedown: typing");
+      }
+    }
+  };
 
   loadEnvironment = async (loader) => {
     const game = this;

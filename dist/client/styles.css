@@ -1,0 +1,75 @@
+body {
+  font-family: Monospace;
+  background-color: #000;
+  color: #fff;
+  margin: 0px;
+  overflow: hidden;
+  position: relative;
+}
+
+h1 {
+  position: absolute;
+  background-color: transparent;
+  font-family: Orbitron;
+  text-align: center;
+  width: 100%;
+  z-index: 100;
+  color: black;
+}
+#message {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translateX(-50%) translateY(-50%);
+  font-family: "Kavivanar", san-serif;
+  font-size: 40px;
+  width: 80%;
+  max-width: 280px;
+  padding: 15px 15px 50px 15px;
+  text-align: center;
+  display: none;
+  align-content: center;
+  justify-content: center;
+  background-color: aliceblue;
+  border: medium solid #3d455c;
+  border-radius: 20px;
+  color: #3d455c;
+  z-index: 99;
+}
+#message_ok {
+  position: absolute;
+  bottom: 10px;
+  padding: 10px 20px 10px 20px;
+  font-family: sans-serif;
+  font-size: 20px;
+  background-color: #3d455c;
+  color: #fff;
+  border-radius: 8px;
+  border: medium solid #696882;
+}
+#chat {
+  position: absolute;
+  width: 300px;
+  height: 40px;
+  transition: all 0.5s;
+  z-index: 100;
+  display: none;
+}
+form {
+  position: absolute;
+  left: 40px;
+  top: 40px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0px 5px 10px rgb(66, 66, 66);
+}
+form input {
+  border: 0;
+  padding: 10px;
+}
+form button {
+  background: beige;
+  border: none;
+  padding: 10px;
+}

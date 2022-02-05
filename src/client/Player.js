@@ -104,6 +104,7 @@ export class Player {
           game.initializingPlayers.indexOf(this),
           1
         );
+
         game.remotePlayers.push(players[0]);
       }
 
@@ -193,6 +194,17 @@ export class PlayerLocal extends Player {
       }
     });
 
+    $("#msg-form").submit(function (e) {
+      e.preventDefault();
+      // Send Message
+      socket.emit("chat message", {
+        id: game.chatSocketId,
+        message: $("#m").val(),
+      });
+      // Clear value on UI
+      $("#m").val("");
+    });
+
     this.socket = socket;
   }
 
@@ -231,10 +243,11 @@ export class PlayerLocal extends Player {
     if (this.motion.forward < 0) direction.negate();
     let raycaster = new THREE.Raycaster(position, direction);
     let blocked = false;
-    const colliders = this.game.colliders;
+    const colliders = this.game.colliders.concat(this.game.remoteColliders);
 
     if (colliders !== undefined) {
       const intersect = raycaster.intersectObjects(colliders);
+
       if (intersect.length > 0) {
         if (intersect[0].distance < 50) blocked = true;
       }

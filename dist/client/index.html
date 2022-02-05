@@ -3,16 +3,29 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Phil's MetaWorld</title>
-    <style>
-      body {
-        overflow: hidden;
-        margin: 0px;
-      }
-    </style>
+    <title>Phil's World</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
   </head>
 
   <body>
+    <h1 class="title">Welcome to Phil's World</h1>
+
+    <div id="message">
+      <p id="message_text"></p>
+      <button id="message_ok">OK</button>
+    </div>
+    <div id="chat">
+      <form id="msg-form" action="">
+        <input id="m" autocomplete="off" /><button>Send</button>
+      </form>
+    </div>
     <script type="module" src="bundle.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
   </body>
 </html>

@@ -49,6 +49,14 @@ io.sockets.on("connection", (socket) => {
     socket.userData.pb = data.pb;
     socket.userData.action = data.action;
   });
+
+  socket.on("chat message", function (data) {
+    console.log(`chat id: ${data.id}, message: ${data.message}`);
+    io.to(data.id).emit("chat message", {
+      id: socket.id,
+      message: data.message,
+    });
+  });
 });
 
 let port = process.env.PORT || 6500;
