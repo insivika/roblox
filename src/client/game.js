@@ -5,6 +5,7 @@ import JoyStick from "./utils/Joystick";
 import Preloader from "./utils/Preloader";
 import { PlayerLocal, Player } from "./Player";
 import SpeechBubble from "./SpeechBubble";
+import delay from "delay";
 
 class Game {
   constructor() {
@@ -275,33 +276,20 @@ class Game {
     );
   };
 
-  // setAction = (name) => {
-  //   const action = this.player.mixer.clipAction(this.animations[name]);
-  //   action.time = 0;
-  //   this.player.mixer.stopAllAction();
-  //   this.player.action = name;
-  //   this.player.actionTime = Date.now();
-  //   this.player.actionName = name;
-
-  //   action
-  //     .reset()
-  //     .setEffectiveTimeScale(1)
-  //     .setEffectiveWeight(1)
-  //     //   .fadeIn(0.5)
-  //     .play();
-  // };
-
   getAction = () => {
     if (this.player === undefined || this.player.actionName === undefined)
       return "";
     return this.player.actionName;
   };
 
-  loadInitialAction = () => {
+  loadInitialAction = async () => {
     this.joystick = new JoyStick({
       onMove: this.playerControl,
       game: this,
     });
+    // Awaiting player to load
+    // TODO: make this call dependant on player having loaded
+    await delay(1500);
     this.player.setAction("Idle");
     this.mode = this.modes.ACTIVE;
     this.animate();
