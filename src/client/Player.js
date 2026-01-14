@@ -125,16 +125,43 @@ export class Player {
 
     const action = this.mixer.clipAction(clip);
     action.time = 0;
-    this.mixer.stopAllAction();
+
+    // Smooth transition: fade out current action and fade in new one
+    const fadeDuration = 0.3; // 300ms transition
+
+    if (this.currentAction) {
+      // Fade out the current action
+      this.currentAction.fadeOut(fadeDuration);
+    }
+
+    // Reset and configure the new action
+    action.reset();
+    action.setEffectiveTimeScale(1);
+    action.setEffectiveWeight(1);
+    action.fadeIn(fadeDuration);
+    action.play();
+
+    // Store reference to current action for next transition
+    this.currentAction = action;
     this.actionName = name;
     this.actionTime = Date.now();
-    // // TODO: Not working in newer Three.js versions
-    // // action.fadeIn(0.5);
-    action.play();
   }
 
   getAction() {
     return this.action.name;
+  }
+
+  dispose() {
+    // Cleanup to prevent memory leaks
+    if (this.mixer) {
+      this.mixer.stopAllAction();
+      // Uncache all clips to free memory
+      if (this.currentAction) {
+        this.mixer.uncacheClip(this.currentAction.getClip());
+        this.currentAction = null;
+      }
+      this.mixer.uncacheRoot(this.root);
+    }
   }
 
   update(dt) {
@@ -172,24 +199,21 @@ export class PlayerLocal extends Player {
 
     socket.on("deletePlayer", (data) => {
       const players = game.remotePlayers.filter((player) => {
-        if ((player.id = data.id)) {
+        if (player.id === data.id) {
           return player;
         }
       });
 
-      if (player.length > 0) {
-        let index = game.remotePlayers.indexOf(players[0]);
-        if (index != -1) {
-          game.remotePlayers.splice(index, 1);
-          game.scene.remove(players[0].object);
-        } else {
-          index = game.initializingPlayers.indexOf(data.id);
-
-          if (index != -1) {
-            const player = game.initializingPlayers[index];
-            player.delete = true;
-            game.initializingPlayers.splice(index, 1);
-          }
+      if (players.length > 0) {
+        // Use the new removePlayer method for proper cleanup
+        game.removePlayer(players[0]);
+      } else {
+        // Check if player is still initializing
+        const index = game.initializingPlayers.indexOf(data.id);
+        if (index !== -1) {
+          const player = game.initializingPlayers[index];
+          player.deleted = true;
+          game.initializingPlayers.splice(index, 1);
         }
       }
     });

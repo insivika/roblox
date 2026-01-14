@@ -62,6 +62,11 @@ class Game {
     this.container.style.height = "100%";
     document.body.appendChild(this.container);
 
+    console.log("BEFORE setupKeyboardControls");
+    // Setup keyboard controls immediately, before preloader
+    this.setupKeyboardControls();
+    console.log("AFTER setupKeyboardControls");
+
     const preloader = new Preloader(options);
 
     window.onError = function (error) {
@@ -261,14 +266,37 @@ class Game {
 
   loadAnimations = async (loader) => {
     const game = this;
+
+    // Create a custom loading manager that suppresses texture errors
+    const loadingManager = new THREE.LoadingManager();
+    loadingManager.onError = (url) => {
+      // Silently ignore texture loading errors from animation files
+      // These FBX files contain references to textures from the original author's system
+      // We only need the animation data, not the textures
+      if (url.includes("Dropbox") || url.includes(":/")) {
+        // Suppress these expected errors
+        return;
+      }
+      console.error("Error loading:", url);
+    };
+
+    // Create a dedicated FBX loader for animations with the custom manager
+    const animLoader = new FBXLoader(loadingManager);
+
     await Promise.all(
       game.animationNames.map(async (animationName) => {
         return new Promise((resolve, reject) => {
-          loader.load(
+          animLoader.load(
             `./assets/fbx/anims/${animationName}.fbx`,
             function (object) {
               game.animations[animationName] = object.animations[0];
               resolve();
+            },
+            undefined, // onProgress callback
+            function (error) {
+              // Error loading the FBX file itself (not textures)
+              console.error(`Error loading animation ${animationName}:`, error);
+              reject(error);
             }
           );
         });
@@ -282,11 +310,66 @@ class Game {
     return this.player.actionName;
   };
 
+  setupKeyboardControls = () => {
+    console.log("INSIDE setupKeyboardControls - START");
+
+    // Initialize keyboard controls
+    this.keys = {
+      ArrowUp: false,
+      ArrowDown: false,
+      ArrowLeft: false,
+      ArrowRight: false,
+    };
+
+    const game = this;
+
+    console.log("Setting up keyboard controls...");
+
+    // Keydown event - capture phase to get it before anything else
+    window.addEventListener(
+      "keydown",
+      (event) => {
+        console.log("Keydown event:", event.key); // Log ALL keys
+        if (event.key in game.keys) {
+          console.log("Arrow key pressed:", event.key);
+          event.preventDefault();
+          event.stopPropagation();
+          game.keys[event.key] = true;
+          game.updateKeyboardControls();
+        }
+      },
+      true
+    );
+
+    console.log("Keydown listener added");
+
+    // Keyup event - capture phase
+    window.addEventListener(
+      "keyup",
+      (event) => {
+        console.log("Keyup event:", event.key); // Log ALL keys
+        if (event.key in game.keys) {
+          console.log("Arrow key released:", event.key);
+          event.preventDefault();
+          event.stopPropagation();
+          game.keys[event.key] = false;
+          game.updateKeyboardControls();
+        }
+      },
+      true
+    );
+
+    console.log("Keyup listener added");
+    console.log("Keyboard controls ready!");
+    console.log("INSIDE setupKeyboardControls - END");
+  };
+
   loadInitialAction = async () => {
     this.joystick = new JoyStick({
       onMove: this.playerControl,
       game: this,
     });
+
     // Awaiting player to load
     // TODO: make this call dependant on player having loaded
     await delay(1500);
@@ -367,6 +450,51 @@ class Game {
     if (players.length == 0) return;
 
     return players[0];
+  };
+
+  removePlayer = (player) => {
+    // Properly dispose of player resources to prevent memory leaks
+    if (player.dispose) {
+      player.dispose();
+    }
+
+    // Remove from scene
+    if (player.object && player.object.parent) {
+      this.scene.remove(player.object);
+    }
+
+    // Remove from remote players array
+    const index = this.remotePlayers.indexOf(player);
+    if (index !== -1) {
+      this.remotePlayers.splice(index, 1);
+    }
+
+    // Remove collider from remote colliders
+    if (player.collider) {
+      const colliderIndex = this.remoteColliders.indexOf(player.collider);
+      if (colliderIndex !== -1) {
+        this.remoteColliders.splice(colliderIndex, 1);
+      }
+    }
+  };
+
+  updateKeyboardControls = () => {
+    // Safety check - make sure player exists
+    if (!this.player || !this.player.object) {
+      console.log("Player not ready yet");
+      return;
+    }
+
+    let forward = 0;
+    let turn = 0;
+
+    if (this.keys.ArrowUp) forward += 1;
+    if (this.keys.ArrowDown) forward -= 1;
+    if (this.keys.ArrowLeft) turn -= 1;
+    if (this.keys.ArrowRight) turn += 1;
+
+    console.log("Keyboard controls:", { forward, turn });
+    this.playerControl(forward, turn);
   };
 
   playerControl = (forward, turn) => {
@@ -478,4 +606,6 @@ class Game {
   }
 }
 
+console.log("============ ABOUT TO CREATE NEW GAME ============");
 new Game();
+console.log("============ GAME CREATED ============");
