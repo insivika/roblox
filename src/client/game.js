@@ -88,11 +88,14 @@ class Game {
 
     this.scene = new THREE.Scene();
 
-    this.scene.background = new THREE.Color(0x00a0f0);
-    const ambient = new THREE.AmbientLight(0xaaaaaa);
+    this.scene.background = new THREE.Color(0x87ceeb);
+    
+    // Brighter ambient light for better visibility
+    const ambient = new THREE.AmbientLight(0xffffff, 0.8);
     this.scene.add(ambient);
 
-    const light = new THREE.DirectionalLight(0xaaaaaa);
+    // Stronger directional light
+    const light = new THREE.DirectionalLight(0xffffff, 0.6);
     light.position.set(30, 100, 40);
     light.target.position.set(0, 0, 0);
 
@@ -231,19 +234,64 @@ class Game {
     loader.load(`${this.assetsPath}fbx/town.fbx`, async (object) => {
       game.environment = object;
       game.colliders = [];
+      game.streets = []; // Separate array for street meshes
       game.scene.add(object);
+
+      console.log("=== ANALYZING CITY MODEL ===");
+      const meshNames = new Set();
+      const materialNames = new Set();
 
       object.traverse((child) => {
         if (child.isMesh) {
+          meshNames.add(child.name);
+          
+          // Log material info
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach(mat => {
+                materialNames.add(mat.name);
+                // Fix material properties for visibility
+                mat.needsUpdate = true;
+              });
+            } else {
+              materialNames.add(child.material.name);
+              // Fix material properties
+              child.material.needsUpdate = true;
+              
+              // If material has no texture, give it a color
+              if (!child.material.map) {
+                child.material.color.setHex(0x808080);
+              }
+            }
+          }
+          
+          // Check if this might be a street based on name
+          const nameLower = child.name.toLowerCase();
+          const isStreet = nameLower.includes('road') || 
+                          nameLower.includes('street') || 
+                          nameLower.includes('sidewalk') ||
+                          nameLower.includes('pavement') ||
+                          nameLower.includes('ground');
+          
           if (child.name.startsWith("proxy")) {
             game.colliders.push(child);
             child.material.visible = false;
+            
+            if (isStreet) {
+              game.streets.push(child);
+              console.log(`Found street collider: ${child.name}`);
+            }
           } else {
             child.castShadow = true;
             child.receiveShadow = true;
           }
         }
       });
+
+      console.log("Unique mesh names found:", Array.from(meshNames).sort());
+      console.log("Unique material names found:", Array.from(materialNames).sort());
+      console.log(`Total colliders: ${game.colliders.length}`);
+      console.log(`Street colliders: ${game.streets.length}`);
 
       const tLoader = new THREE.CubeTextureLoader();
       tLoader.setPath(`${game.assetsPath}/images/`);
@@ -259,7 +307,7 @@ class Game {
 
       game.scene.background = textureCube;
       
-      console.log(`Environment loaded with ${game.colliders.length} colliders`);
+      console.log(`City environment loaded`);
       
       // Load NPCs after environment is ready
       game.loadNPCs();
@@ -407,76 +455,64 @@ class Game {
       "Waitress",
     ];
 
-    // Spawn area - 3x the original size
-    const cityBounds = {
-      minX: -9000,
-      maxX: 9000,
-      minZ: -9000,
-      maxZ: 9000,
-    };
-
-    console.log("Spawning NPCs on streets using raycasting");
-    console.log("Player spawn location: 3122, 0, -173");
+    console.log("Spawning NPCs at predefined street locations across the city");
+    console.log("Player spawn: x=3122, z=-173");
+    
+    // Widely spread street coordinates - much further apart
+    const streetSpawnPoints = [
+      // Far west
+      { x: 1000, z: -500 }, { x: 1200, z: 0 }, { x: 1500, z: 500 },
+      // West
+      { x: 2000, z: -800 }, { x: 2200, z: -200 }, { x: 2400, z: 400 },
+      // Northwest to Southwest
+      { x: 2600, z: -1000 }, { x: 2800, z: -600 }, { x: 2700, z: 600 }, { x: 2900, z: 1000 },
+      // Near spawn but spread
+      { x: 3000, z: -800 }, { x: 3200, z: 600 },
+      // Northeast to Southeast  
+      { x: 3400, z: -1000 }, { x: 3600, z: -600 }, { x: 3500, z: 700 }, { x: 3700, z: 1000 },
+      // East
+      { x: 4000, z: -700 }, { x: 4200, z: -100 }, { x: 4400, z: 500 },
+      // Far east
+      { x: 5000, z: -600 }, { x: 5200, z: 0 }, { x: 5500, z: 600 },
+      // Extreme positions
+      { x: 1500, z: -1200 }, { x: 5500, z: -1200 },
+      { x: 1500, z: 1200 }, { x: 5500, z: 1200 },
+      // Mid-range scattered
+      { x: 2500, z: -400 }, { x: 3800, z: 300 }, { x: 4500, z: -300 },
+    ];
 
     const raycaster = new THREE.Raycaster();
     const downDirection = new THREE.Vector3(0, -1, 0);
     
-    const npcCount = 30;
-    let spawnedCount = 0;
-    let attempts = 0;
-    const maxAttempts = npcCount * 10; // Try up to 10x the desired count
-
-    while (spawnedCount < npcCount && attempts < maxAttempts) {
-      attempts++;
-      
+    // Spawn one NPC at each point (or random selection)
+    for (let i = 0; i < Math.min(30, streetSpawnPoints.length); i++) {
+      const point = streetSpawnPoints[i];
       const model = npcModels[Math.floor(Math.random() * npcModels.length)];
-      
-      // Generate random position
-      const x = cityBounds.minX + Math.random() * (cityBounds.maxX - cityBounds.minX);
-      const z = cityBounds.minZ + Math.random() * (cityBounds.maxZ - cityBounds.minZ);
       const ry = Math.random() * Math.PI * 2;
       
-      // Raycast from high above to find ground level
-      const rayOrigin = new THREE.Vector3(x, 1000, z);
+      // Raycast to find exact ground height at this point
+      const rayOrigin = new THREE.Vector3(point.x, 1000, point.z);
       raycaster.set(rayOrigin, downDirection);
       
-      // Check collision with environment
+      let groundY = 0;
       if (this.colliders && this.colliders.length > 0) {
         const intersects = raycaster.intersectObjects(this.colliders);
-        
         if (intersects.length > 0) {
-          const groundY = intersects[0].point.y;
-          
-          // Only spawn on ground level (not on rooftops)
-          // Assume street level is between -10 and 50 units
-          if (groundY >= -10 && groundY <= 50) {
-            console.log(`NPC ${spawnedCount}: ${model} at x=${x.toFixed(0)}, y=${groundY.toFixed(1)}, z=${z.toFixed(0)}`);
-            
-            const npc = new NPC(this, {
-              model: model,
-              position: { x: x, y: groundY, z: z },
-              rotation: { x: 0, y: ry, z: 0 },
-            });
-            this.npcs.push(npc);
-            spawnedCount++;
-          } else {
-            console.log(`Rejected position - too high (y=${groundY.toFixed(1)}) - likely a rooftop`);
-          }
+          groundY = intersects[0].point.y;
         }
-      } else {
-        // Fallback if colliders not ready yet - spawn at y=0
-        console.log(`NPC ${spawnedCount}: ${model} at x=${x.toFixed(0)}, y=0, z=${z.toFixed(0)} (no collision check)`);
-        const npc = new NPC(this, {
-          model: model,
-          position: { x: x, y: 0, z: z },
-          rotation: { x: 0, y: ry, z: 0 },
-        });
-        this.npcs.push(npc);
-        spawnedCount++;
       }
+      
+      console.log(`NPC ${i}: ${model} at x=${point.x}, y=${groundY.toFixed(1)}, z=${point.z}`);
+      
+      const npc = new NPC(this, {
+        model: model,
+        position: { x: point.x, y: groundY, z: point.z },
+        rotation: { x: 0, y: ry, z: 0 },
+      });
+      this.npcs.push(npc);
     }
 
-    console.log(`Spawned ${spawnedCount} NPCs on streets after ${attempts} attempts`);
+    console.log(`Spawned ${this.npcs.length} NPCs at street locations`);
   };
 
   onWindowResize() {
@@ -673,9 +709,30 @@ class Game {
       this.player.mixer.update(dt);
 
     // Update NPCs
-    this.npcs.forEach((npc) => {
-      npc.update(dt);
-    });
+    if (this.player && this.player.object) {
+      const playerPos = this.player.object.position;
+      const interactionRadius = 500; // Distance at which NPCs react
+      
+      this.npcs.forEach((npc) => {
+        npc.update(dt);
+        
+        // Check if NPC object is loaded
+        if (npc.object) {
+          // Calculate distance to player
+          const distance = playerPos.distanceTo(npc.object.position);
+          
+          // If player is close, NPC turns to face them
+          if (distance < interactionRadius) {
+            npc.lookAt(playerPos);
+          }
+        }
+      });
+    } else {
+      // Fallback if player not ready
+      this.npcs.forEach((npc) => {
+        npc.update(dt);
+      });
+    }
 
     if (this.player.actionName == "Walking") {
       const elapsedTime = Date.now() - this.player.actionTime;

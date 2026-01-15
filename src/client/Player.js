@@ -298,13 +298,23 @@ export class PlayerLocal extends Player {
     if (this.motion.forward < 0) direction.negate();
     let raycaster = new THREE.Raycaster(position, direction);
     let blocked = false;
-    const colliders = this.game.colliders.concat(this.game.remoteColliders);
+    
+    // Combine all colliders: buildings, remote players, and NPCs
+    let allColliders = this.game.colliders || [];
+    if (this.game.remoteColliders) {
+      allColliders = allColliders.concat(this.game.remoteColliders);
+    }
+    if (this.game.npcColliders) {
+      allColliders = allColliders.concat(this.game.npcColliders);
+    }
 
-    if (colliders !== undefined) {
-      const intersect = raycaster.intersectObjects(colliders);
+    if (allColliders.length > 0) {
+      const intersect = raycaster.intersectObjects(allColliders);
 
       if (intersect.length > 0) {
-        if (intersect[0].distance < 50) blocked = true;
+        if (intersect[0].distance < 50) {
+          blocked = true;
+        }
       }
     }
 
@@ -316,7 +326,7 @@ export class PlayerLocal extends Player {
         this.object.translateZ(-dt * 30);
       }
     }
-    if (colliders !== undefined) {
+    if (allColliders.length > 0) {
       // Cast Left
       // Cast Right
       // Cast down
@@ -325,7 +335,7 @@ export class PlayerLocal extends Player {
       raycaster = new THREE.Raycaster(position, direction);
       const gravity = 30;
 
-      let intersect = raycaster.intersectObjects(colliders);
+      let intersect = raycaster.intersectObjects(allColliders);
       // Check for intersection collected in the intersect array
       if (intersect.length > 0) {
         const targetY = position.y - intersect[0].distance;

@@ -71,6 +71,19 @@ export class NPC {
       npc.object.add(object);
       npc.object.userData.npc = true;
       
+      // Add collision box for NPC so players can't walk through them
+      const geometry = new THREE.BoxGeometry(100, 300, 100);
+      const material = new THREE.MeshBasicMaterial({ visible: false });
+      const box = new THREE.Mesh(geometry, material);
+      box.name = "NPCCollider";
+      box.position.set(0, 150, 0);
+      npc.object.add(box);
+      npc.collider = box;
+      
+      // Add NPC collider to game colliders
+      if (!game.npcColliders) game.npcColliders = [];
+      game.npcColliders.push(box);
+      
       console.log(`NPC ${model} placed at:`, npc.object.position);
       
       game.scene.add(npc.object);
@@ -128,6 +141,29 @@ export class NPC {
     if (this.mixer) {
       this.mixer.update(dt);
     }
+  }
+
+  lookAt(targetPosition) {
+    if (!this.object) return;
+    
+    // Calculate direction to target
+    const direction = new THREE.Vector3();
+    direction.subVectors(targetPosition, this.object.position);
+    direction.y = 0; // Keep it horizontal
+    
+    // Calculate angle to target
+    const targetAngle = Math.atan2(direction.x, direction.z);
+    const currentAngle = this.object.rotation.y;
+    
+    // Calculate the shortest angular difference
+    let angleDiff = targetAngle - currentAngle;
+    
+    // Normalize the angle difference to be between -PI and PI (shortest path)
+    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+    
+    // Apply smooth rotation using the shortest path
+    this.object.rotation.y += angleDiff * 0.05;
   }
 
   dispose() {
