@@ -5,6 +5,7 @@ import JoyStick from "./utils/Joystick";
 import Preloader from "./utils/Preloader";
 import { PlayerLocal, Player } from "./Player";
 import SpeechBubble from "./SpeechBubble";
+import { NPC } from "./NPC";
 import delay from "delay";
 
 class Game {
@@ -26,6 +27,7 @@ class Game {
     this.remotePlayers = [];
     this.remoteColliders = [];
     this.initializingPlayers = [];
+    this.npcs = [];
     this.assetsPath = "./assets/";
     const game = this;
     this.animationNames = [
@@ -256,6 +258,11 @@ class Game {
       ]);
 
       game.scene.background = textureCube;
+      
+      console.log(`Environment loaded with ${game.colliders.length} colliders`);
+      
+      // Load NPCs after environment is ready
+      game.loadNPCs();
     });
 
     // TODO: This might need to go into the function above
@@ -374,8 +381,102 @@ class Game {
     // TODO: make this call dependant on player having loaded
     await delay(1500);
     this.player.setAction("Idle");
+    
+    // NPCs are now loaded in loadEnvironment after colliders are ready
+    
     this.mode = this.modes.ACTIVE;
     this.animate();
+  };
+
+  loadNPCs = () => {
+    const npcModels = [
+      "BeachBabe",
+      "BusinessMan",
+      "Doctor",
+      "FireFighter",
+      "Housewife",
+      "Policeman",
+      "Prostitute",
+      "Punk",
+      "RiotCop",
+      "Roadworker",
+      "Robber",
+      "Sheriff",
+      "Streetman",
+      "Trucker",
+      "Waitress",
+    ];
+
+    // Spawn area - 3x the original size
+    const cityBounds = {
+      minX: -9000,
+      maxX: 9000,
+      minZ: -9000,
+      maxZ: 9000,
+    };
+
+    console.log("Spawning NPCs on streets using raycasting");
+    console.log("Player spawn location: 3122, 0, -173");
+
+    const raycaster = new THREE.Raycaster();
+    const downDirection = new THREE.Vector3(0, -1, 0);
+    
+    const npcCount = 30;
+    let spawnedCount = 0;
+    let attempts = 0;
+    const maxAttempts = npcCount * 10; // Try up to 10x the desired count
+
+    while (spawnedCount < npcCount && attempts < maxAttempts) {
+      attempts++;
+      
+      const model = npcModels[Math.floor(Math.random() * npcModels.length)];
+      
+      // Generate random position
+      const x = cityBounds.minX + Math.random() * (cityBounds.maxX - cityBounds.minX);
+      const z = cityBounds.minZ + Math.random() * (cityBounds.maxZ - cityBounds.minZ);
+      const ry = Math.random() * Math.PI * 2;
+      
+      // Raycast from high above to find ground level
+      const rayOrigin = new THREE.Vector3(x, 1000, z);
+      raycaster.set(rayOrigin, downDirection);
+      
+      // Check collision with environment
+      if (this.colliders && this.colliders.length > 0) {
+        const intersects = raycaster.intersectObjects(this.colliders);
+        
+        if (intersects.length > 0) {
+          const groundY = intersects[0].point.y;
+          
+          // Only spawn on ground level (not on rooftops)
+          // Assume street level is between -10 and 50 units
+          if (groundY >= -10 && groundY <= 50) {
+            console.log(`NPC ${spawnedCount}: ${model} at x=${x.toFixed(0)}, y=${groundY.toFixed(1)}, z=${z.toFixed(0)}`);
+            
+            const npc = new NPC(this, {
+              model: model,
+              position: { x: x, y: groundY, z: z },
+              rotation: { x: 0, y: ry, z: 0 },
+            });
+            this.npcs.push(npc);
+            spawnedCount++;
+          } else {
+            console.log(`Rejected position - too high (y=${groundY.toFixed(1)}) - likely a rooftop`);
+          }
+        }
+      } else {
+        // Fallback if colliders not ready yet - spawn at y=0
+        console.log(`NPC ${spawnedCount}: ${model} at x=${x.toFixed(0)}, y=0, z=${z.toFixed(0)} (no collision check)`);
+        const npc = new NPC(this, {
+          model: model,
+          position: { x: x, y: 0, z: z },
+          rotation: { x: 0, y: ry, z: 0 },
+        });
+        this.npcs.push(npc);
+        spawnedCount++;
+      }
+    }
+
+    console.log(`Spawned ${spawnedCount} NPCs on streets after ${attempts} attempts`);
   };
 
   onWindowResize() {
@@ -570,6 +671,11 @@ class Game {
 
     if (this.player.mixer !== undefined && this.mode === this.modes.ACTIVE)
       this.player.mixer.update(dt);
+
+    // Update NPCs
+    this.npcs.forEach((npc) => {
+      npc.update(dt);
+    });
 
     if (this.player.actionName == "Walking") {
       const elapsedTime = Date.now() - this.player.actionTime;

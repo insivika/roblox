@@ -26,6 +26,7 @@ export class Player {
         "Robber",
         "Sheriff",
         "Streetman",
+        "Trucker",
         "Waitress",
       ];
       model = people[Math.floor(Math.random() * people.length)];
@@ -43,6 +44,9 @@ export class Player {
     this.color = color;
     this.game = game;
     this.animations = this.game.animations;
+    
+    // Map FBX model names to texture names
+    this.textureModelName = this.getTextureModelName(model);
 
     const loader = new FBXLoader();
     const player = this;
@@ -62,13 +66,29 @@ export class Player {
       });
 
       const textureLoader = new THREE.TextureLoader();
+      const texturePath = `${game.assetsPath}images/SimplePeople_${player.textureModelName}_${color}.png`;
+      console.log(`Loading player texture: ${texturePath}`);
 
       textureLoader.load(
-        `${game.assetsPath}images/SimplePeople_${model}_${color}.png`,
+        texturePath,
         (texture) => {
+          // Successfully loaded texture
           object.traverse((child) => {
             if (child.isMesh) {
               child.material.map = texture;
+              child.material.needsUpdate = true;
+            }
+          });
+        },
+        undefined, // onProgress
+        (error) => {
+          // Error loading texture - apply a default color instead
+          console.warn(`Failed to load texture for ${model}_${color}, using default material`);
+          object.traverse((child) => {
+            if (child.isMesh) {
+              // Set a basic color material as fallback
+              child.material.color.setHex(0x808080); // Gray color
+              child.material.needsUpdate = true;
             }
           });
         }
@@ -149,6 +169,17 @@ export class Player {
 
   getAction() {
     return this.action.name;
+  }
+
+  getTextureModelName(fbxName) {
+    // Map FBX file names to texture file names
+    const nameMap = {
+      "Housewife": "HouseWife",
+      "Roadworker": "RoadWorker",
+      "Streetman": "StreetMan",
+      "Trucker": "StreetMan", // Trucker texture doesn't exist, use StreetMan instead
+    };
+    return nameMap[fbxName] || fbxName;
   }
 
   dispose() {
