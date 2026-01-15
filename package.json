@@ -1,7 +1,7 @@
 {
-  "name": "roblox",
+  "name": "tour-de-lingo",
   "version": "1.0.0",
-  "description": "",
+  "description": "Interactive 3D language learning city exploration game",
   "main": "index.js",
   "type": "module",
   "scripts": {
