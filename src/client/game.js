@@ -494,6 +494,12 @@ class Game {
     if (this.keys.ArrowRight) turn += 1;
 
     console.log("Keyboard controls:", { forward, turn });
+    
+    // Update joystick visual to match keyboard input
+    if (this.joystick) {
+      this.joystick.setPosition(forward, turn);
+    }
+    
     this.playerControl(forward, turn);
   };
 

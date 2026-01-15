@@ -113,4 +113,16 @@ export default class JoyStick {
 
     this.onMove.call(this.game, 0, 0);
   }
+
+  setPosition(forward, turn) {
+    // Convert forward/turn values (-1 to 1) to joystick position
+    // forward: positive = up (negative top offset)
+    // turn: positive = right (positive left offset)
+    const top = -forward * this.maxRadius;
+    const left = turn * this.maxRadius;
+
+    // Apply the position
+    this.domElement.style.top = `${top + this.origin.top}px`;
+    this.domElement.style.left = `${left + this.origin.left}px`;
+  }
 }

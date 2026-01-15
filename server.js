@@ -15,7 +15,7 @@ const io = new Server(server);
 
 app.use(
   cors({
-    origin: "http://localhost:8080",
+    origin: "http://localhost:2222",
   })
 );
 app.use(express.static(__dirname + "/dist/client"));
